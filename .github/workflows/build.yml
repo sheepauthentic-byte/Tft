@@ -1,8 +1,10 @@
-name: Build Sheepct TFTMod Final iOS Dylib
+name: Build Sheepct TFTMod iOS Dylib
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - master
   workflow_dispatch:
 
 jobs:
@@ -12,25 +14,32 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Theos & Procursus ldid
+      - name: Check Xcode & iOS SDK on runner
         run: |
-          git clone --recursive https://github.com/theos/theos.git ~/theos
-          brew install ldid xz
-          mkdir -p ~/theos/sdks
-          curl -sL https://github.com/xybp888/iOS-SDKs/releases/download/iOS-SDKs/iPhoneOS16.5.sdk.tar.xz | tar -xJ -C ~/theos/sdks
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-path
+          brew install ldid
 
-      - name: Build dylib (make all)
+      - name: Install Theos
+        run: |
+          git clone --depth 1 https://github.com/theos/theos.git "$HOME/theos"
+
+      - name: Build tftmod.dylib with Theos
         env:
           THEOS: /Users/runner/theos
         run: |
           make all FINALPACKAGE=1
           mkdir -p dist
-          cp .theos/obj/tftmod.dylib dist/tftmod.dylib
-          strip -x dist/tftmod.dylib
+          DYLIB_PATH=$(find .theos -name "tftmod.dylib" | head -n 1)
+          echo "Found dylib: $DYLIB_PATH"
+          test -n "$DYLIB_PATH"
+          cp "$DYLIB_PATH" dist/tftmod.dylib
+          strip -x dist/tftmod.dylib || true
           ldid -S dist/tftmod.dylib
+          ls -lh dist/tftmod.dylib
 
-      - name: Upload tftmod.dylib artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sheepct-tftmod-final-arm64
+          name: sheepct-tftmod-dylib-arm64
           path: dist/tftmod.dylib
